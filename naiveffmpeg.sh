@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# ./gfachvideo.sh "C:/cygwin/home/Lenovo/tmp/pwd2.mp4" ble3
-
 # convert a video file using ffmpeg
 usage="Usage: `basename $0` [OPTIONS] [FILEIN] ([FILEOUT])"
 
@@ -27,7 +25,7 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ $# -eq 0 ]; then
 	echo "   -nthreads n      set number of threads for process (3 default)"
 	echo "   -movie           crop video to a 2.40:1 aspect ratio"
 	echo ""
-	echo "Examples: $ ./`basename $0` -webm -quality med -scale \"2:3\" ./videos/011.MOV ./tmp/test011"
+	echo "Examples: $ ./`basename $0` -webm -quality med -scale 2:3 ./videos/011.MOV ./tmp/test011"
 	echo "          $ ./`basename $0` -quality high -parallel ./videos/*.MOV"
 	exit
 fi	
@@ -76,6 +74,8 @@ postopt="-t 8"
 # filterin=", frei0r=contrast0r:0.56"
 
 ####### set file names #######
+
+# for INFILE in $@
 
 if [ $# -ne 1 ] && [ $# -ne 2 ]; then 		# variable supplied?
 	echo $usage 1>&2
