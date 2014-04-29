@@ -147,81 +147,81 @@ ls -l $INLIST
 for INFILE in $INLIST  # $@
 do
 
-insize=$(get_size "$INFILE")
-if [[ "$INFILE" = */* ]]; then
-	inpath="${INFILE%/*}/"
-else
-	inpath=""
-fi
-
-if [ $parallel -eq 1 ] || [ $# -eq 1 ]; then 
-	OUTNAME=$(filebase "$INFILE")
-	outfile=$inpath$OUTNAME
-else
-	OUTNAME="$2"
-	outbase=$(filebase "$OUTNAME")
-	if [ $outbase = "$OUTNAME" ]; then 
-		outfile=$inpath$OUTNAME
-	else  # a path
-		outfile=$OUTNAME
+	insize=$(get_size "$INFILE")
+	if [[ "$INFILE" = */* ]]; then
+		inpath="${INFILE%/*}/"
+	else
+		inpath=""
 	fi
-fi
+
+	if [ $parallel -eq 1 ] || [ $# -eq 1 ]; then 
+		OUTNAME=$(filebase "$INFILE")
+		outfile=$inpath$OUTNAME
+	else
+		OUTNAME="$2"
+		outbase=$(filebase "$OUTNAME")
+		if [ $outbase = "$OUTNAME" ]; then 
+			outfile=$inpath$OUTNAME
+		else  # a path
+			outfile=$OUTNAME
+		fi
+	fi
 
 
-####### set options #######
+	####### set options #######
 
-in_w=${insize%x*}
-in_h=${insize#*x}
-scaleo=${scale%:*}
-scalei=${scale#*:}
-out_h=$((in_h*$scaleo/$scalei))
-out_w=$((in_w*$scaleo/$scalei))
-refbitrate=2000 # K
-refarea=$((1280*720))
-bitrate=$((refbitrate*out_h*out_w/refarea))
+	in_w=${insize%x*}
+	in_h=${insize#*x}
+	scaleo=${scale%:*}
+	scalei=${scale#*:}
+	out_h=$((in_h*$scaleo/$scalei))
+	out_w=$((in_w*$scaleo/$scalei))
+	refbitrate=2000 # K
+	refarea=$((1280*720))
+	bitrate=$((refbitrate*out_h*out_w/refarea))
 
-filterstr="scale=-1:ih*$scaleo/$scalei"$filterin
+	filterstr="scale=-1:ih*$scaleo/$scalei"$filterin
 
 
-case $quality in
-	low)  bitrate=$(echo $((bitrate/2)))K;;
-	med)  bitrate=$(echo $bitrate)K;;
-	high) bitrate=$(echo $((bitrate*3/2)))K;;
-	*) usage_error "bad argument ($quality) for -quality";;
-esac
-
-# low crf is better quality
-if [ $codec = "webm" ]; then 
-	codecstr="-vcodec libvpx -acodec libvorbis"
-	outfile=$outfile.webm
 	case $quality in
-		low)  qualstr="-vb $bitrate -ab 128k -crf 12 -qmin 8 -qmax 60";;
-		med)  qualstr="-vb $bitrate -ab 160k -crf 8  -qmin 4 -qmax 56";;
-		high) qualstr="-vb $bitrate -ab 256k -crf 4  -qmin 0 -qmax 50";;
+		low)  bitrate=$(echo $((bitrate/2)))K;;
+		med)  bitrate=$(echo $bitrate)K;;
+		high) bitrate=$(echo $((bitrate*3/2)))K;;
+		*) usage_error "bad argument ($quality) for -quality";;
 	esac
-elif [ $codec = "mp4" ]; then 
-	codecstr="-vcodec libx264 -acodec libmp3lame"
-	outfile=$outfile.mp4
-	case $quality in
-		low)  qualstr="-vb $bitrate -ab 128k -crf 28 -qmin 10 -qmax 62";;
-		med)  qualstr="-vb $bitrate -ab 160k -crf 22 -qmin 6  -qmax 58";;
-		high) qualstr="-vb $bitrate -ab 256k -crf 19 -qmin 3  -qmax 53";;
-	esac
-else
-	usage_error "bad argument ($codec) for -codec"
-fi
 
-####### convert video #######
+	# low crf is better quality
+	if [ $codec = "webm" ]; then 
+		codecstr="-vcodec libvpx -acodec libvorbis"
+		outfile=$outfile.webm
+		case $quality in
+			low)  qualstr="-vb $bitrate -ab 128k -crf 12 -qmin 8 -qmax 60";;
+			med)  qualstr="-vb $bitrate -ab 160k -crf 8  -qmin 4 -qmax 56";;
+			high) qualstr="-vb $bitrate -ab 256k -crf 4  -qmin 0 -qmax 50";;
+		esac
+	elif [ $codec = "mp4" ]; then 
+		codecstr="-vcodec libx264 -acodec libmp3lame"
+		outfile=$outfile.mp4
+		case $quality in
+			low)  qualstr="-vb $bitrate -ab 128k -crf 28 -qmin 10 -qmax 62";;
+			med)  qualstr="-vb $bitrate -ab 160k -crf 22 -qmin 6  -qmax 58";;
+			high) qualstr="-vb $bitrate -ab 256k -crf 19 -qmin 3  -qmax 53";;
+		esac
+	else
+		usage_error "bad argument ($codec) for -codec"
+	fi
 
-echo "converting:"
-echo "$INFILE   ($in_w""x""$in_h) ->"
-echo "$outfile   ($out_w""x""$out_h) at bitrate $bitrate"
+	####### convert video #######
 
-if [ $parallel -eq 1 ]; then 
-	ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads -y "$outfile" </dev/null > /dev/null 2>&1 &
-else
-	ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads "$outfile"
-fi
+	echo "converting:"
+	echo "$INFILE   ($in_w""x""$in_h) ->"
+	echo "$outfile   ($out_w""x""$out_h) at bitrate $bitrate"
+
+	if [ $parallel -eq 1 ]; then 
+		ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads -y "$outfile" </dev/null > /dev/null 2>&1 &
+	else
+		ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads "$outfile"
+	fi
 
 done
 
