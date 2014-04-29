@@ -1,14 +1,30 @@
 #!/bin/bash
 
-# convert a video file using ffmpeg
+#    Naive-FFmpeg converts and compresses video files using ffmpeg
+#    Copyright (C) 2014  Gudmundur Adalsteinsson
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, version 3 of the License.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
 usage="Usage: `basename $0` [OPTIONS] [FILEIN] ([FILEOUT])"
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ $# -eq 0 ]; then 
 	echo $usage
 	echo "Convert a video file using ffmpeg with simple optimized compression options"
 	echo ""
-	echo "   -codec c         set codec by file format"
-	echo "                       (\"mp4\" (x264, default),\"webm\")"	
+	echo "Options:"
+	echo "   -mp4,-webm       set codec by file format directly"
+	echo "                       (\"-mp4\" (x264, default),\"-webm\" (VPx))"	
 	echo "   -quality q       set quality of compression "
 	echo "                       (\"low\", \"med\" (default), \"high\") "
 	echo "   -scale s         set output to input scaling ratio"
@@ -16,20 +32,27 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ $# -eq 0 ]; then
 	echo "                       \"1:1\" is default"	
 	echo "   -parallel        set parallel mode on, takes FILEIN as expression"
 	echo "                       e.g. \"./*.MOV\" to convert all MOV files"	
-	echo "                       no FILEOUT string allowed, overwrites mode on"
+	echo "                       no FILEOUT string allowed, overwrite mode on"
 	echo "                       and any printed output sent to null"
 	echo "   -filter f        set additional video filter"
 	echo "                       e.g. \", frei0r=contrast0r:0.56\""
 	echo "   -preopt pr       set extra ffmpeg options pre infile, .e.g \"-ss 00:00:10\""
 	echo "   -postopt po      set extra ffmpeg options post infile, .e.g \"-t 8\""
 	echo "   -nthreads n      set number of threads for process (3 default)"
-	echo "   -movie           crop video to a 2.40:1 aspect ratio"
+	#echo "   -movie           crop video to a 2.40:1 aspect ratio"
 	echo ""
 	echo "Examples: $ ./`basename $0` -webm -quality med -scale 2:3 ./videos/011.MOV ./tmp/test011"
 	echo "          $ ./`basename $0` -quality high -parallel ./videos/*.MOV"
 	exit
 fi	
 
+usage_error() 
+{
+    echo `basename $0`: ERROR: $1 1>&2
+    echo $usage 1>&2
+	echo For help: `basename $0` -h 1>&2
+    exit 1
+}
 get_size()
 {
 	ffmpeg -i "$1" 2>&1 | perl -lane 'print $1 if /([0-9]{2,}x[0-9]+)/'
@@ -37,6 +60,16 @@ get_size()
 get_info()
 {
 	ffmpeg -i "$1" 2>&1 | grep Stream
+}
+floor2even()
+{
+	num=$1
+	echo $((num-(num % 2)))
+}
+filebase()
+{
+	filename="$(basename "$1")"
+	echo "${filename%.*}"
 }
 
 # =================================
@@ -49,11 +82,11 @@ fi
 
 ####### default options #######
 
-codec=mp4  # webm, mp4
+codec=mp4  		# webm, mp4
 scale="1:1"
 parallel=0 		# 0=false, -y overwrites output files
-movie=0
-nthreads=3		# use default in ffmpeg if not specified?
+movie=0			# not in use
+nthreads=3
 quality=med		# low, med, high
 preopt=""
 postopt=""
@@ -61,38 +94,72 @@ filterin=""
 
 ####### get options #######
 
-scale="2:3"
-scaleo=${scale%:*}
-scalei=${scale#*:}
-codec=webm
-quality=high
-# parallel=1  # add parallel mode
+while [ $# -gt 0 ]; do
+	case "$1" in
+		-mp4)
+			codec=mp4;;
+		-webm)
+			codec=webm;;
+		-quality)
+			quality=$2
+			shift;;
+		-scale)
+			scale=$2
+			shift;;
+		-parallel)
+			parallel=1
+			nthreads=1;;	
+		-filter)
+			filterin=$2
+			shift;;	
+		-preopt)
+			preopt=$2
+			shift;;	
+		-postopt)
+			postopt=$2
+			shift;;	
+		-nthreads)
+			nthreads=$2
+			shift;;	
+		*) break;;
+	esac
+	shift
+done
 
-preopt="-ss 00:00:10"
-postopt="-t 8"
 
-# filterin=", frei0r=contrast0r:0.56"
+# "crop=1920:800:0:140, scale=1280:534, ..."
 
-####### set file names #######
-
-# for INFILE in $@
-
-if [ $# -ne 1 ] && [ $# -ne 2 ]; then 		# variable supplied?
+if [ $parallel -eq 0 ] && [ $# -ne 1 ] && [ $# -ne 2 ]; then 		# variable supplied?
 	echo $usage 1>&2
 	exit 1 
 fi
 
-INFILE="$1"
-shift
-insize=$(get_size "$INFILE")
-inpath=$(gfafilename -path "$INFILE")
+if [ $parallel -eq 1 ]; then
+	INLIST=$@
+else
+	INLIST="$1"
+fi
 
-if [ $# -eq 0 ]; then 
-	OUTNAME=$(gfafilename -base "$INFILE")
+
+####### parallel loop #######
+
+ls -l $INLIST
+for INFILE in $INLIST  # $@
+do
+
+insize=$(get_size "$INFILE")
+if [[ "$INFILE" = */* ]]; then
+	inpath="${INFILE%/*}/"
+else
+	inpath=""
+fi
+
+if [ $parallel -eq 1 ] || [ $# -eq 1 ]; then 
+	OUTNAME=$(filebase "$INFILE")
 	outfile=$inpath$OUTNAME
 else
-	OUTNAME="$1"
-	outbase=$(gfafilename -base "$OUTNAME")
+	OUTNAME="$2"
+	outbase=$(filebase "$OUTNAME")
 	if [ $outbase = "$OUTNAME" ]; then 
 		outfile=$inpath$OUTNAME
 	else  # a path
@@ -105,6 +172,8 @@ fi
 
 in_w=${insize%x*}
 in_h=${insize#*x}
+scaleo=${scale%:*}
+scalei=${scale#*:}
 out_h=$((in_h*$scaleo/$scalei))
 out_w=$((in_w*$scaleo/$scalei))
 refbitrate=2000 # K
@@ -114,38 +183,33 @@ bitrate=$((refbitrate*out_h*out_w/refarea))
 filterstr="scale=-1:ih*$scaleo/$scalei"$filterin
 
 
-if [ $quality = "low" ]; then 
-	bitrate=$(echo $((bitrate/2)))K
-elif [ $quality = "med" ]; then 
-	bitrate=$(echo $bitrate)K
-elif [ $quality = "high" ]; then 
-	bitrate=$(echo $((bitrate*3/2)))K
-fi
+case $quality in
+	low)  bitrate=$(echo $((bitrate/2)))K;;
+	med)  bitrate=$(echo $bitrate)K;;
+	high) bitrate=$(echo $((bitrate*3/2)))K;;
+	*) usage_error "bad argument ($quality) for -quality";;
+esac
 
 # low crf is better quality
 if [ $codec = "webm" ]; then 
 	codecstr="-vcodec libvpx -acodec libvorbis"
 	outfile=$outfile.webm
-	if [ $quality = "low" ]; then 
-		qualstr="-vb $bitrate -ab 128k -crf 12 -qmin 8 -qmax 60"
-	elif [ $quality = "med" ]; then 
-		qualstr="-vb $bitrate -ab 160k -crf 8 -qmin 4 -qmax 56"
-	elif [ $quality = "high" ]; then 
-		qualstr="-vb $bitrate -ab 256k -crf 4 -qmin 0 -qmax 50"
-	fi
+	case $quality in
+		low)  qualstr="-vb $bitrate -ab 128k -crf 12 -qmin 8 -qmax 60";;
+		med)  qualstr="-vb $bitrate -ab 160k -crf 8  -qmin 4 -qmax 56";;
+		high) qualstr="-vb $bitrate -ab 256k -crf 4  -qmin 0 -qmax 50";;
+	esac
 elif [ $codec = "mp4" ]; then 
 	codecstr="-vcodec libx264 -acodec libmp3lame"
 	outfile=$outfile.mp4
-	if [ $quality = "low" ]; then 
-		qualstr="-vb $bitrate -ab 128k -crf 28 -qmin 10 -qmax 62"
-	elif [ $quality = "med" ]; then 
-		qualstr="-vb $bitrate -ab 160k -crf 22 -qmin 6 -qmax 58"
-	elif [ $quality = "high" ]; then 
-		qualstr="-vb $bitrate -ab 256k -crf 19 -qmin 3 -qmax 53"
-	fi
+	case $quality in
+		low)  qualstr="-vb $bitrate -ab 128k -crf 28 -qmin 10 -qmax 62";;
+		med)  qualstr="-vb $bitrate -ab 160k -crf 22 -qmin 6  -qmax 58";;
+		high) qualstr="-vb $bitrate -ab 256k -crf 19 -qmin 3  -qmax 53";;
+	esac
+else
+	usage_error "bad argument ($codec) for -codec"
 fi
-
-
 
 ####### convert video #######
 
@@ -156,8 +220,9 @@ echo "$outfile   ($out_w""x""$out_h) at bitrate $bitrate"
 if [ $parallel -eq 1 ]; then 
 	ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads -y "$outfile" </dev/null > /dev/null 2>&1 &
 else
-	ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads -vframes 1000 "$outfile"
+	ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads "$outfile"
 fi
 
+done
 
 exit
