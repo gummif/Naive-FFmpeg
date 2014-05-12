@@ -15,7 +15,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
+shellname="bash"
 usage="Usage: `basename $0` [OPTIONS] [FILEIN] ([FILEOUT])"
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ $# -eq 0 ]; then 
@@ -30,7 +30,9 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ $# -eq 0 ]; then
 	echo "   -scale s         set output to input scaling ratio"
 	echo "                       e.g. \"2:3\" for 1080p->720p conversion"
 	echo "                       \"1:1\" is default"	
-	echo "   -parallel        set parallel mode on, takes FILEIN as expression"
+	echo "   -parallel n      set parallel mode on, using at most n threads at once,"
+	echo "                       e.g. 4 threads for quad-core CPU"
+	echo "                       FILEIN should be a list of files to convert"
 	echo "                       e.g. \"./*.MOV\" to convert all MOV files"	
 	echo "                       no FILEOUT string allowed, overwrite mode on"
 	echo "                       and any printed output sent to null"
@@ -38,7 +40,8 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ $# -eq 0 ]; then
 	echo "                       e.g. \", frei0r=contrast0r:0.56\""
 	echo "   -preopt pr       set extra ffmpeg options pre infile, .e.g \"-ss 00:00:10\""
 	echo "   -postopt po      set extra ffmpeg options post infile, .e.g \"-t 8\""
-	echo "   -nthreads n      set number of threads for process (3 default)"
+	echo "   -nthreads n      set number of threads per process (1 default) in serial"
+	echo "                       use -parallel n in parallel mode"
 	#echo "   -movie           crop video to a 2.40:1 aspect ratio"
 	echo ""
 	echo "Examples: $ ./`basename $0` -webm -quality med -scale 2:3 ./videos/011.MOV ./tmp/test011"
@@ -86,7 +89,7 @@ codec=mp4  		# webm, mp4
 scale="1:1"
 parallel=0 		# 0=false, -y overwrites output files
 movie=0			# not in use
-nthreads=3
+nthreads=1
 quality=med		# low, med, high
 preopt=""
 postopt=""
@@ -108,7 +111,8 @@ while [ $# -gt 0 ]; do
 			shift;;
 		-parallel)
 			parallel=1
-			nthreads=1;;	
+			nthreads=$2
+			shift;;
 		-filter)
 			filterin=$2
 			shift;;	
@@ -130,12 +134,11 @@ done
 # "crop=1920:800:0:140, scale=1280:534, ..."
 
 if [ $parallel -eq 0 ] && [ $# -ne 1 ] && [ $# -ne 2 ]; then 		# variable supplied?
-	echo $usage 1>&2
-	exit 1 
+	usage_error "number of arguments"
 fi
 
 if [ $parallel -eq 1 ]; then
-	INLIST=$@
+	INLIST=($@)
 else
 	INLIST="$1"
 fi
@@ -143,8 +146,14 @@ fi
 
 ####### parallel loop #######
 
-ls -l $INLIST
-for INFILE in $INLIST  # $@
+#commandfile="naiveffmpeg.tmp"
+#>"$commandfile" || usage_error "$commandfile - unable to clear file"
+
+ls -l "${INLIST[@]}"
+echo ""
+
+i=0
+for INFILE in "${INLIST[@]}"  # $@
 do
 
 	insize=$(get_size "$INFILE")
@@ -211,18 +220,28 @@ do
 		usage_error "bad argument ($codec) for -codec"
 	fi
 
-	####### convert video #######
+	####### convert video or save command #######
 
-	echo "converting:"
+	echo "converting ${i}:"
 	echo "$INFILE   ($in_w""x""$in_h) ->"
 	echo "$outfile   ($out_w""x""$out_h) at bitrate $bitrate"
 
 	if [ $parallel -eq 1 ]; then 
-		ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads -y "$outfile" </dev/null > /dev/null 2>&1 &
+		commands[i++]="ffmpeg $preopt -i \"$INFILE\" $postopt $qualstr -vf \"$filterstr\" $codecstr -threads 1 -y \"$outfile\" </dev/null > /dev/null 2>&1"
 	else
 		ffmpeg $preopt -i "$INFILE" $postopt $qualstr -vf "$filterstr" $codecstr -threads $nthreads "$outfile"
 	fi
 
 done
 
+# execute commands in parallel
+if [ $parallel -eq 1 ]; then 
+	echo ""
+	echo "Converting $i files using at most $nthreads threads..."
+	echo ""
+	printf '%s\0' "${commands[@]}" | xargs --max-procs=$nthreads --max-args=1 -t -I {} -0 $shellname -c {}
+fi
+
+#echo "ffmpeg $preopt -i \"$INFILE\" $postopt $qualstr -vf \"$filterstr\" $codecstr -threads 1 -y \"$outfile\" </dev/null > /dev/null 2>&1" >>"$commandfile"
+#xargs --max-procs=$nthreads --max-args=1 -t -I {} -d '\n' $shellname -c {} <"$commandfile"
 exit
