@@ -45,7 +45,7 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ $# -eq 0 ]; then
 	#echo "   -movie           crop video to a 2.40:1 aspect ratio"
 	echo ""
 	echo "Examples: $ ./`basename $0` -webm -quality med -scale 2:3 ./videos/011.MOV ./tmp/test011"
-	echo "          $ ./`basename $0` -quality high -parallel ./videos/*.MOV"
+	echo "          $ ./`basename $0` -quality high -parallel 4 \"./videos/*.MOV\""
 	exit
 fi	
 

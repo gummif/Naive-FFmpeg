@@ -1,6 +1,6 @@
 To install this software on a GNU/Linux system, execute the following lines:
 
-chmod +x naiveffmpeg.sh
-sudo cp naiveffmpeg.sh /bin/naiveffmpeg
+sudo cp naiveffmpeg.sh /usr/bin/naiveffmpeg
+sudo chmod +rx /usr/bin/naiveffmpeg
 
-Or run the install.sh script with sudo.
+or run the install.sh script as root.

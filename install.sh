@@ -1,6 +1,6 @@
 #!/bin/bash
 
-chmod +x naiveffmpeg.sh
-cp naiveffmpeg.sh /bin/naiveffmpeg
+cp naiveffmpeg.sh /usr/bin/naiveffmpeg
+chmod +rx /usr/bin/naiveffmpeg
 
 exit
