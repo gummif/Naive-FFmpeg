@@ -15,39 +15,43 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-shellname="bash"
-usage="Usage: `basename $0` [OPTIONS] [FILEIN] ([FILEOUT])"
+shellname="bash" # for xargs
+usage="Usage: $(basename $0) [OPTIONS] [FILEIN] ([FILEOUT])"
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ $# -eq 0 ]; then 
 	echo $usage
-	echo "Convert a video file using ffmpeg with simple optimized compression options"
-	echo ""
-	echo "Options:"
-	echo "   -mp4,-webm       set codec by file format directly"
-	echo "                       (\"-mp4\" (x264, default),\"-webm\" (VPx))"	
-	echo "   -quality q       set quality of compression "
-	echo "                       (\"low\", \"med\" (default), \"high\") "
-	echo "   -scale s         set output to input scaling ratio"
-	echo "                       e.g. \"2:3\" for 1080p->720p conversion"
-	echo "                       \"1:1\" is default"	
-	echo "   -parallel n      set parallel mode on, using at most n threads at once,"
-	echo "                       e.g. 4 threads for quad-core CPU"
-	echo "                       FILEIN should be a list of files to convert"
-	echo "                       e.g. \"./*.MOV\" to convert all MOV files"	
-	echo "                       no FILEOUT string allowed, overwrite mode on"
-	echo "                       and any printed output sent to null"
-	echo "   -filter f        set additional video filter"
-	echo "                       e.g. \", frei0r=contrast0r:0.56\""
-	echo "   -preopt pr       set extra ffmpeg options pre infile, .e.g \"-ss 00:00:10\""
-	echo "   -postopt po      set extra ffmpeg options post infile, .e.g \"-t 8\""
-	echo "   -nthreads n      set number of threads per process (1 default) in serial"
-	echo "                       use -parallel n in parallel mode"
-	#echo "   -movie           crop video to a 2.40:1 aspect ratio"
-	echo ""
-	echo "Examples: $ ./`basename $0` -webm -quality med -scale 2:3 ./videos/011.MOV ./tmp/test011"
-	echo "          $ ./`basename $0` -quality high -parallel 4 \"./videos/*.MOV\""
+	cat <<- EOF
+	Convert a video file using ffmpeg with simple optimized compression options
+	 
+	Options:
+	   -mp4,-webm       set codec by file format directly
+	                       ("-mp4" (x264, default),"-webm" (VPx))
+	   -quality q       set quality of compression 
+	                       ("low", "med" (default), "high") 
+	   -scale s         set output to input scaling ratio
+	                       e.g. "2:3" for 1080p->720p conversion
+	                       "1:1" is default
+	   -parallel n      set parallel mode on, using at most n threads at once,
+	                       e.g. 4 threads for quad-core CPU
+	                       FILEIN should be a list of files to convert
+	                       e.g. "./*.MOV" to convert all MOV files
+	                       no FILEOUT string allowed, overwrite mode on
+	                       and any printed output sent to null
+	   -filter f        set additional video filter
+	                       e.g. ", frei0r=contrast0r:0.56"
+	   -preopt pr       set extra ffmpeg options pre infile, .e.g "-ss 00:00:10"
+	   -postopt po      set extra ffmpeg options post infile, .e.g "-t 8"
+	   -nthreads n      set number of threads per process (1 default) in serial
+	                       use -parallel n in parallel mode
+
+	 
+	Examples: $ $(basename $0) -webm -quality med -scale 2:3 ./videos/011.MOV ./tmp/test011
+	          $ $(basename $0) -quality high -parallel 4 "./videos/*.MOV"
+EOF
+	  	#echo "   -movie           crop video to a 2.40:1 aspect ratio"
 	exit
 fi	
+
 
 usage_error() 
 {
@@ -80,6 +84,10 @@ filebase()
 
 if [ "$1" = "-info" ]; then 
 	get_info "$2"
+	exit
+fi	
+if [ "$1" = "-size" ]; then 
+	get_size "$2"
 	exit
 fi	
 
@@ -145,9 +153,6 @@ fi
 
 
 ####### parallel loop #######
-
-#commandfile="naiveffmpeg.tmp"
-#>"$commandfile" || usage_error "$commandfile - unable to clear file"
 
 ls -l "${INLIST[@]}"
 echo ""
